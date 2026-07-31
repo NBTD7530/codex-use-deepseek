@@ -514,11 +514,16 @@ def install(
     layout,
     runner=subprocess.run,
     password_writer=write_security_password_prompt,
+    port_checker=port_is_available,
 ):
-    if not port_is_available(17890):
+    if not port_checker(17890):
         raise InstallError("127.0.0.1:17890 is already in use")
     backup = migrate(layout, runner=runner, password_writer=password_writer)
-    activate_launch_agent(layout.launch_agent, runner=runner)
+    try:
+        activate_launch_agent(layout.launch_agent, runner=runner)
+    except Exception:
+        rollback(layout, backup, runner=runner)
+        raise
     return backup
 
 

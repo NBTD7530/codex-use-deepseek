@@ -11,6 +11,7 @@ from src.installer import (
     InstallLayout,
     activate_launch_agent,
     extract_deepseek_key,
+    install,
     install_keychain_secret,
     merge_catalog,
     migrate,
@@ -369,6 +370,32 @@ class InstallTransactionTests(unittest.TestCase):
         )
 
         rollback(self.layout, backup, runner=successful_runner, uid=501)
+
+        self.assertEqual(self.config_path.read_text(encoding="utf-8"), SAMPLE_CONFIG)
+        self.assertFalse((self.home / ".codex/models-router.json").exists())
+        self.assertFalse(
+            (self.home / "Library/LaunchAgents/com.codex.model-router.plist").exists()
+        )
+
+    def test_launchd_failure_rolls_back_the_completed_file_migration(self):
+        def runner(arguments, **kwargs):
+            if "find-generic-password" in arguments:
+                return subprocess.CompletedProcess(
+                    arguments, 0, "dummy-deepseek-secret\n", ""
+                )
+            if "bootstrap" in arguments:
+                return subprocess.CompletedProcess(arguments, 1, "", "denied")
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        with self.assertRaisesRegex(InstallError, "bootstrap"):
+            install(
+                self.layout,
+                runner=runner,
+                password_writer=lambda arguments, secret: subprocess.CompletedProcess(
+                    arguments, 0, "", ""
+                ),
+                port_checker=lambda port: True,
+            )
 
         self.assertEqual(self.config_path.read_text(encoding="utf-8"), SAMPLE_CONFIG)
         self.assertFalse((self.home / ".codex/models-router.json").exists())
