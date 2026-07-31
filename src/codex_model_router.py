@@ -7,11 +7,13 @@ import http.client
 import logging
 import os
 import pwd
+import re
 import subprocess
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 
 
 DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
@@ -108,14 +110,22 @@ class UpstreamTarget:
     host: str
     port: int
     base_path: str
+    proxy_host: Optional[str] = None
+    proxy_port: Optional[int] = None
 
     def request(self, path, body, headers):
-        connection_class = (
-            http.client.HTTPSConnection
-            if self.scheme == "https"
-            else http.client.HTTPConnection
-        )
-        connection = connection_class(self.host, self.port, timeout=600)
+        if self.scheme == "https" and self.proxy_host and self.proxy_port:
+            connection = http.client.HTTPSConnection(
+                self.proxy_host, self.proxy_port, timeout=600
+            )
+            connection.set_tunnel(self.host, self.port)
+        else:
+            connection_class = (
+                http.client.HTTPSConnection
+                if self.scheme == "https"
+                else http.client.HTTPConnection
+            )
+            connection = connection_class(self.host, self.port, timeout=600)
         upstream_path = "{0}/{1}".format(
             self.base_path.rstrip("/"), path.lstrip("/")
         )
@@ -291,17 +301,54 @@ def read_deepseek_key(runner=subprocess.run, account=None):
     return secret or None
 
 
-def build_production_server(host, port, catalog, key_provider=read_deepseek_key):
+def discover_macos_https_proxy(runner=subprocess.run):
+    """Read the enabled HTTPS proxy from macOS SystemConfiguration."""
+    result = runner(
+        ["/usr/sbin/scutil", "--proxy"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    values = {}
+    for line in result.stdout.splitlines():
+        match = re.match(r"^\s*(HTTPSEnable|HTTPSProxy|HTTPSPort)\s*:\s*(.*?)\s*$", line)
+        if match:
+            values[match.group(1)] = match.group(2)
+    if values.get("HTTPSEnable") != "1":
+        return None
+    proxy_host = values.get("HTTPSProxy")
+    proxy_port = values.get("HTTPSPort")
+    if not proxy_host or not proxy_port:
+        return None
+    try:
+        return proxy_host, int(proxy_port)
+    except ValueError:
+        return None
+
+
+def build_production_server(
+    host,
+    port,
+    catalog,
+    key_provider=read_deepseek_key,
+    proxy_discovery=discover_macos_https_proxy,
+):
     """Create the fixed-upstream production server."""
     if host != "127.0.0.1":
         raise ValueError("router must bind to the IPv4 loopback address")
     policy = RoutingPolicy.from_catalog(catalog)
+    https_proxy = proxy_discovery()
+    proxy_host, proxy_port = https_proxy if https_proxy else (None, None)
     upstreams = {
         "openai": UpstreamTarget(
             scheme="https",
             host="chatgpt.com",
             port=443,
             base_path="/backend-api/codex",
+            proxy_host=proxy_host,
+            proxy_port=proxy_port,
         ),
         "deepseek": UpstreamTarget(
             scheme="https",

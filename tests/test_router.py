@@ -6,6 +6,7 @@ import unittest
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 from src.codex_model_router import (
     MissingDeepSeekKeyError,
@@ -14,6 +15,7 @@ from src.codex_model_router import (
     UnknownModelError,
     UpstreamTarget,
     build_production_server,
+    discover_macos_https_proxy,
     prepare_upstream_headers,
     read_deepseek_key,
 )
@@ -349,6 +351,52 @@ class RouterErrorTests(unittest.TestCase):
 
 
 class ProductionConfigurationTests(unittest.TestCase):
+    def test_macos_https_proxy_is_discovered_from_system_configuration(self):
+        def runner(arguments, **kwargs):
+            class Result:
+                returncode = 0
+                stdout = """<dictionary> {
+  HTTPSEnable : 1
+  HTTPSPort : 7890
+  HTTPSProxy : 127.0.0.1
+}
+"""
+
+            return Result()
+
+        self.assertEqual(
+            discover_macos_https_proxy(runner=runner), ("127.0.0.1", 7890)
+        )
+
+    def test_https_target_uses_connect_tunnel_when_proxy_is_configured(self):
+        target = UpstreamTarget(
+            scheme="https",
+            host="chatgpt.com",
+            port=443,
+            base_path="/backend-api/codex",
+            proxy_host="127.0.0.1",
+            proxy_port=7890,
+        )
+        with patch("src.codex_model_router.http.client.HTTPSConnection") as factory:
+            connection = factory.return_value
+            response = connection.getresponse.return_value
+            response.status = 200
+            response.reason = "OK"
+            response.getheaders.return_value = []
+
+            target.request(
+                "/responses", b"{}", {"Authorization": "Bearer token"}
+            )
+
+        factory.assert_called_once_with("127.0.0.1", 7890, timeout=600)
+        connection.set_tunnel.assert_called_once_with("chatgpt.com", 443)
+        connection.request.assert_called_once_with(
+            "POST",
+            "/backend-api/codex/responses",
+            body=b"{}",
+            headers={"Authorization": "Bearer token"},
+        )
+
     def test_keychain_reader_uses_the_named_service(self):
         calls = []
 
@@ -397,7 +445,11 @@ class ProductionConfigurationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             server = build_production_server(
-                "127.0.0.1", 0, catalog_path, key_provider=lambda: "ds-secret"
+                "127.0.0.1",
+                0,
+                catalog_path,
+                key_provider=lambda: "ds-secret",
+                proxy_discovery=lambda: None,
             )
             self.addCleanup(server.server_close)
 
@@ -412,7 +464,11 @@ class ProductionConfigurationTests(unittest.TestCase):
     def test_production_server_rejects_non_loopback_binding(self):
         with self.assertRaisesRegex(ValueError, "loopback"):
             build_production_server(
-                "0.0.0.0", 17890, Path("unused"), key_provider=lambda: "unused"
+                "0.0.0.0",
+                17890,
+                Path("unused"),
+                key_provider=lambda: "unused",
+                proxy_discovery=lambda: None,
             )
 
 
