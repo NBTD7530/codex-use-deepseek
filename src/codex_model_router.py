@@ -2,10 +2,17 @@
 """Local Responses router for mixed OpenAI and DeepSeek Codex models."""
 
 import json
+import http.client
+import logging
+import time
+from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
 DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
+LOGGER = logging.getLogger("codex_model_router")
+LOGGER.addHandler(logging.NullHandler())
 HOP_BY_HOP_HEADERS = frozenset(
     {
         "connection",
@@ -87,3 +94,171 @@ def prepare_upstream_headers(headers, route, deepseek_key):
         raise ValueError("unsupported route: {0}".format(route))
 
     return result
+
+
+@dataclass(frozen=True)
+class UpstreamTarget:
+    """Connection details for one Responses-compatible upstream."""
+
+    scheme: str
+    host: str
+    port: int
+    base_path: str
+
+    def request(self, path, body, headers):
+        connection_class = (
+            http.client.HTTPSConnection
+            if self.scheme == "https"
+            else http.client.HTTPConnection
+        )
+        connection = connection_class(self.host, self.port, timeout=600)
+        upstream_path = "{0}/{1}".format(
+            self.base_path.rstrip("/"), path.lstrip("/")
+        )
+        connection.request("POST", upstream_path, body=body, headers=headers)
+        return UpstreamResponse(connection, connection.getresponse())
+
+
+class UpstreamResponse:
+    """Owns an upstream HTTP response until its stream is exhausted."""
+
+    def __init__(self, connection, response):
+        self._connection = connection
+        self._response = response
+        self.status = response.status
+        self.reason = response.reason
+        self.headers = response.getheaders()
+
+    def iter_chunks(self):
+        try:
+            while True:
+                chunk = self._response.read1(64 * 1024)
+                if not chunk:
+                    return
+                yield chunk
+        finally:
+            self._connection.close()
+
+
+class RouterHandler(BaseHTTPRequestHandler):
+    """Validates and forwards one Responses API request."""
+
+    protocol_version = "HTTP/1.1"
+    server_version = "CodexModelRouter/1"
+    sys_version = ""
+
+    def do_GET(self):
+        if self.path != "/health":
+            self._send_json(404, {"error": {"code": "not_found"}})
+            return
+        self._send_json(200, {"status": "ok"})
+
+    def do_POST(self):
+        started_at = time.monotonic()
+        model = None
+        try:
+            content_length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self._reject(400, "invalid_content_length", model, started_at)
+            return
+        if content_length < 1:
+            self._reject(400, "missing_request_body", model, started_at)
+            return
+
+        body = self.rfile.read(content_length)
+        try:
+            payload = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._reject(400, "invalid_json", model, started_at)
+            return
+
+        model = payload.get("model") if isinstance(payload, dict) else None
+        if not isinstance(model, str) or not model:
+            self._reject(400, "missing_model", None, started_at)
+            return
+
+        authorization = self.headers.get("Authorization", "")
+        if not authorization.startswith("Bearer "):
+            self._reject(401, "missing_codex_auth", model, started_at)
+            return
+
+        try:
+            route = self.server.policy.choose(model)
+        except UnknownModelError:
+            self._reject(400, "unknown_model", model, started_at)
+            return
+
+        try:
+            deepseek_key = (
+                self.server.key_provider() if route == "deepseek" else None
+            )
+            headers = prepare_upstream_headers(self.headers, route, deepseek_key)
+        except MissingDeepSeekKeyError:
+            self._reject(503, "missing_deepseek_key", model, started_at)
+            return
+
+        try:
+            upstream_response = self.server.upstreams[route].request(
+                self.path, body, headers
+            )
+        except (OSError, http.client.HTTPException, TimeoutError):
+            self._reject(502, "upstream_unavailable", model, started_at)
+            return
+
+        self.send_response(upstream_response.status, upstream_response.reason)
+        for key, value in upstream_response.headers:
+            if key.lower() not in HOP_BY_HOP_HEADERS.union(
+                {"content-length", "server", "date"}
+            ):
+                self.send_header(key, value)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        for chunk in upstream_response.iter_chunks():
+            self.wfile.write("{0:X}\r\n".format(len(chunk)).encode("ascii"))
+            self.wfile.write(chunk)
+            self.wfile.write(b"\r\n")
+            self.wfile.flush()
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+        LOGGER.info(
+            "request model=%s route=%s status=%s duration_ms=%d",
+            model,
+            route,
+            upstream_response.status,
+            round((time.monotonic() - started_at) * 1000),
+        )
+
+    def _reject(self, status, code, model, started_at):
+        self._send_json(status, {"error": {"code": code}})
+        LOGGER.warning(
+            "request model=%s route=none status=%s error=%s duration_ms=%d",
+            model or "none",
+            status,
+            code,
+            round((time.monotonic() - started_at) * 1000),
+        )
+
+    def _send_json(self, status, payload):
+        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.close_connection = True
+
+    def log_message(self, format_string, *args):
+        return
+
+
+class RouterServer(ThreadingHTTPServer):
+    """Threaded loopback server with explicit routing dependencies."""
+
+    daemon_threads = True
+
+    def __init__(self, address, policy, upstreams, key_provider):
+        super().__init__(address, RouterHandler)
+        self.policy = policy
+        self.upstreams = upstreams
+        self.key_provider = key_provider
