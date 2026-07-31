@@ -1,0 +1,26 @@
+src/codex_model_router.py
+  s_0e62075836e1f3::t_ffe6c764744b3a 15
+  s_0e62075836e1f3::t_cbefe21d4bf364 5,8-9,97-149,156,168,207-222,250-264
+  s_0e62075836e1f3::t_effa1f4a5c7be3 6-7,14,150-155,157-167,169-206,223-249
+tests/test_router.py
+  s_0e62075836e1f3::t_68c300475c2d7f 1,4,6-7,12,15,20-23,25-65,67-69,161-223,325
+  s_0e62075836e1f3::t_7cacdc111e9603 24,66,70-84,224-244,246-324,326-346
+  s_0e62075836e1f3::t_ffe6c764744b3a 245
+  s_0e62075836e1f3::t_c5dfe5a26762c2 347-348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "2d64eacaba207f132f85c8492905ee5669a82055",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
