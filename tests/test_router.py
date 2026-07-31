@@ -13,7 +13,9 @@ from src.codex_model_router import (
     RoutingPolicy,
     UnknownModelError,
     UpstreamTarget,
+    build_production_server,
     prepare_upstream_headers,
+    read_deepseek_key,
 )
 
 
@@ -344,6 +346,74 @@ class RouterErrorTests(unittest.TestCase):
         self.assertIn("model=gpt-5.6-sol", rendered)
         self.assertNotIn("private-token", rendered)
         self.assertNotIn("private-prompt", rendered)
+
+
+class ProductionConfigurationTests(unittest.TestCase):
+    def test_keychain_reader_uses_the_named_service(self):
+        calls = []
+
+        def successful_runner(arguments, **kwargs):
+            calls.append((arguments, kwargs))
+
+            class Result:
+                returncode = 0
+                stdout = "ds-secret\n"
+
+            return Result()
+
+        secret = read_deepseek_key(runner=successful_runner, account="example")
+
+        self.assertEqual(secret, "ds-secret")
+        arguments, kwargs = calls[0]
+        self.assertEqual(arguments[0], "/usr/bin/security")
+        self.assertIn("codex-model-router.deepseek", arguments)
+        self.assertEqual(arguments[-1], "-w")
+        self.assertTrue(kwargs["capture_output"])
+
+    def test_keychain_reader_returns_none_when_the_item_is_unavailable(self):
+        def failing_runner(arguments, **kwargs):
+            class Result:
+                returncode = 44
+                stdout = ""
+
+            return Result()
+
+        self.assertIsNone(
+            read_deepseek_key(runner=failing_runner, account="example")
+        )
+
+    def test_production_server_uses_exact_upstreams_and_loopback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog_path = Path(directory) / "models.json"
+            catalog_path.write_text(
+                json.dumps(
+                    {
+                        "models": [
+                            {"slug": "gpt-5.6-sol"},
+                            {"slug": "deepseek-v4-flash"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            server = build_production_server(
+                "127.0.0.1", 0, catalog_path, key_provider=lambda: "ds-secret"
+            )
+            self.addCleanup(server.server_close)
+
+            self.assertEqual(server.server_address[0], "127.0.0.1")
+            self.assertEqual(server.upstreams["openai"].host, "chatgpt.com")
+            self.assertEqual(
+                server.upstreams["openai"].base_path, "/backend-api/codex"
+            )
+            self.assertEqual(server.upstreams["deepseek"].host, "api.deepseek.com")
+            self.assertEqual(server.upstreams["deepseek"].base_path, "")
+
+    def test_production_server_rejects_non_loopback_binding(self):
+        with self.assertRaisesRegex(ValueError, "loopback"):
+            build_production_server(
+                "0.0.0.0", 17890, Path("unused"), key_provider=lambda: "unused"
+            )
 
 
 if __name__ == "__main__":

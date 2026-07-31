@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Local Responses router for mixed OpenAI and DeepSeek Codex models."""
 
+import argparse
 import json
 import http.client
 import logging
+import os
+import pwd
+import subprocess
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -262,3 +266,78 @@ class RouterServer(ThreadingHTTPServer):
         self.policy = policy
         self.upstreams = upstreams
         self.key_provider = key_provider
+
+
+def read_deepseek_key(runner=subprocess.run, account=None):
+    """Read the DeepSeek key from the current user's login Keychain."""
+    account_name = account or pwd.getpwuid(os.getuid()).pw_name
+    result = runner(
+        [
+            "/usr/bin/security",
+            "find-generic-password",
+            "-a",
+            account_name,
+            "-s",
+            "codex-model-router.deepseek",
+            "-w",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    secret = result.stdout.strip()
+    return secret or None
+
+
+def build_production_server(host, port, catalog, key_provider=read_deepseek_key):
+    """Create the fixed-upstream production server."""
+    if host != "127.0.0.1":
+        raise ValueError("router must bind to the IPv4 loopback address")
+    policy = RoutingPolicy.from_catalog(catalog)
+    upstreams = {
+        "openai": UpstreamTarget(
+            scheme="https",
+            host="chatgpt.com",
+            port=443,
+            base_path="/backend-api/codex",
+        ),
+        "deepseek": UpstreamTarget(
+            scheme="https",
+            host="api.deepseek.com",
+            port=443,
+            base_path="",
+        ),
+    }
+    return RouterServer((host, port), policy, upstreams, key_provider)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=17890)
+    parser.add_argument(
+        "--catalog",
+        type=Path,
+        default=Path.home() / ".codex" / "models-router.json",
+    )
+    arguments = parser.parse_args(argv)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    server = build_production_server(
+        arguments.host, arguments.port, arguments.catalog
+    )
+    LOGGER.info("router_started host=%s port=%s", arguments.host, arguments.port)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()
