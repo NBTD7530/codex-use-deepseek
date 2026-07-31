@@ -2,16 +2,21 @@
 """Transactional installer helpers for the Codex model router."""
 
 import argparse
+import errno
+import hmac
 import json
 import os
 import plistlib
+import pty
 import pwd
 import re
+import select
 import shutil
 import socket
 import stat
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -173,31 +178,57 @@ def rewrite_codex_config(text):
     return migrated + "\n\n" + ROUTER_PROVIDER_BLOCK
 
 
-def install_keychain_secret(secret, runner=subprocess.run, account=None):
-    """Store the DeepSeek key without exposing it in the process argument list."""
-    account_name = account or pwd.getpwuid(os.getuid()).pw_name
-    arguments = [
-        "/usr/bin/security",
-        "add-generic-password",
-        "-a",
-        account_name,
-        "-s",
-        KEYCHAIN_SERVICE,
-        "-U",
-        "-w",
-    ]
-    result = runner(
-        arguments,
-        input=secret + "\n",
-        text=True,
-        capture_output=True,
-        check=False,
+def write_security_password_prompt(arguments, secret):
+    """Answer security(1)'s two password prompts through a private pseudo-terminal."""
+    child_pid, master_fd = pty.fork()
+    if child_pid == 0:
+        os.execv(arguments[0], arguments)
+
+    prompt_index = 0
+    buffered = b""
+    status = None
+    deadline = time.monotonic() + 30
+    prompts = (
+        b"password data for new item:",
+        b"retype password for new item:",
     )
-    if result.returncode != 0:
-        raise InstallError("Keychain rejected the DeepSeek API key")
+    try:
+        while status is None:
+            finished_pid, child_status = os.waitpid(child_pid, os.WNOHANG)
+            if finished_pid:
+                status = child_status
+                break
+            if time.monotonic() >= deadline:
+                os.kill(child_pid, 15)
+                _, status = os.waitpid(child_pid, 0)
+                break
+            ready, _, _ = select.select([master_fd], [], [], 0.1)
+            if not ready:
+                continue
+            try:
+                chunk = os.read(master_fd, 4096)
+            except OSError as error:
+                if error.errno == errno.EIO:
+                    _, status = os.waitpid(child_pid, 0)
+                    break
+                raise
+            buffered = (buffered + chunk)[-8192:]
+            if prompt_index < len(prompts) and prompts[prompt_index] in buffered:
+                os.write(master_fd, (secret + "\n").encode("utf-8"))
+                prompt_index += 1
+                buffered = b""
+    finally:
+        os.close(master_fd)
+
+    return subprocess.CompletedProcess(
+        arguments,
+        os.waitstatus_to_exitcode(status),
+        "",
+        "",
+    )
 
 
-def keychain_secret_exists(runner=subprocess.run, account=None):
+def read_keychain_secret(runner=subprocess.run, account=None):
     account_name = account or pwd.getpwuid(os.getuid()).pw_name
     result = runner(
         [
@@ -213,7 +244,40 @@ def keychain_secret_exists(runner=subprocess.run, account=None):
         capture_output=True,
         check=False,
     )
-    return result.returncode == 0 and bool(result.stdout.strip())
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def install_keychain_secret(
+    secret,
+    password_writer=write_security_password_prompt,
+    key_reader=None,
+    account=None,
+):
+    """Store and verify the DeepSeek key without putting it in process arguments."""
+    account_name = account or pwd.getpwuid(os.getuid()).pw_name
+    arguments = [
+        "/usr/bin/security",
+        "add-generic-password",
+        "-a",
+        account_name,
+        "-s",
+        KEYCHAIN_SERVICE,
+        "-U",
+        "-w",
+    ]
+    result = password_writer(arguments, secret)
+    if result.returncode != 0:
+        raise InstallError("Keychain rejected the DeepSeek API key")
+    reader = key_reader or (lambda selected_account: read_keychain_secret(account=selected_account))
+    stored = reader(account_name)
+    if stored is None or not hmac.compare_digest(stored, secret):
+        raise InstallError("Keychain verification failed for the DeepSeek API key")
+
+
+def keychain_secret_exists(runner=subprocess.run, account=None):
+    return read_keychain_secret(runner=runner, account=account) is not None
 
 
 def render_launch_agent(home, python):
@@ -308,7 +372,11 @@ def _create_backup(layout):
     return backup
 
 
-def migrate(layout, runner=subprocess.run):
+def migrate(
+    layout,
+    runner=subprocess.run,
+    password_writer=write_security_password_prompt,
+):
     """Install files transactionally after securing the plaintext API key."""
     for required in (
         layout.config,
@@ -326,7 +394,13 @@ def migrate(layout, runner=subprocess.run):
 
     backup = _create_backup(layout)
     if secret:
-        install_keychain_secret(secret, runner=runner)
+        install_keychain_secret(
+            secret,
+            password_writer=password_writer,
+            key_reader=lambda account: read_keychain_secret(
+                runner=runner, account=account
+            ),
+        )
 
     cache = json.loads(layout.model_cache.read_text(encoding="utf-8"))
     deepseek = json.loads(layout.deepseek_catalog.read_text(encoding="utf-8"))
@@ -436,10 +510,14 @@ def latest_backup(layout):
     return candidates[-1]
 
 
-def install(layout, runner=subprocess.run):
+def install(
+    layout,
+    runner=subprocess.run,
+    password_writer=write_security_password_prompt,
+):
     if not port_is_available(17890):
         raise InstallError("127.0.0.1:17890 is already in use")
-    backup = migrate(layout, runner=runner)
+    backup = migrate(layout, runner=runner, password_writer=password_writer)
     activate_launch_agent(layout.launch_agent, runner=runner)
     return backup
 

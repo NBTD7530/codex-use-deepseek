@@ -239,23 +239,47 @@ class InstallTransactionTests(unittest.TestCase):
     def test_keychain_secret_is_passed_on_stdin_not_in_process_arguments(self):
         calls = []
 
-        def recording_runner(arguments, **kwargs):
-            calls.append((arguments, kwargs))
+        def recording_password_writer(arguments, secret):
+            calls.append((arguments, secret))
             return subprocess.CompletedProcess(arguments, 0, "", "")
 
-        install_keychain_secret("dummy-deepseek-secret", recording_runner, "example")
+        install_keychain_secret(
+            "dummy-deepseek-secret",
+            password_writer=recording_password_writer,
+            key_reader=lambda account: "dummy-deepseek-secret",
+            account="example",
+        )
 
-        arguments, kwargs = calls[0]
+        arguments, secret = calls[0]
         self.assertNotIn("dummy-deepseek-secret", arguments)
-        self.assertEqual(kwargs["input"], "dummy-deepseek-secret\n")
+        self.assertEqual(secret, "dummy-deepseek-secret")
         self.assertEqual(arguments[-1], "-w")
 
+    def test_keychain_write_is_rejected_when_readback_does_not_match(self):
+        def successful_password_writer(arguments, secret):
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        with self.assertRaisesRegex(InstallError, "verification"):
+            install_keychain_secret(
+                "dummy-deepseek-secret",
+                password_writer=successful_password_writer,
+                key_reader=lambda account: "",
+                account="example",
+            )
+
     def test_failed_keychain_write_leaves_config_untouched(self):
-        def failing_runner(arguments, **kwargs):
+        def successful_runner(arguments, **kwargs):
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        def failing_password_writer(arguments, secret):
             return subprocess.CompletedProcess(arguments, 1, "", "denied")
 
         with self.assertRaisesRegex(InstallError, "Keychain"):
-            migrate(self.layout, runner=failing_runner)
+            migrate(
+                self.layout,
+                runner=successful_runner,
+                password_writer=failing_password_writer,
+            )
 
         self.assertEqual(self.config_path.read_text(encoding="utf-8"), SAMPLE_CONFIG)
         self.assertFalse((self.home / ".codex" / "models-router.json").exists())
@@ -265,9 +289,20 @@ class InstallTransactionTests(unittest.TestCase):
 
     def test_successful_migration_writes_router_files_after_backup(self):
         def successful_runner(arguments, **kwargs):
+            if "find-generic-password" in arguments:
+                return subprocess.CompletedProcess(
+                    arguments, 0, "dummy-deepseek-secret\n", ""
+                )
             return subprocess.CompletedProcess(arguments, 0, "", "")
 
-        backup = migrate(self.layout, runner=successful_runner)
+        def successful_password_writer(arguments, secret):
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        backup = migrate(
+            self.layout,
+            runner=successful_runner,
+            password_writer=successful_password_writer,
+        )
 
         self.assertTrue((backup / "config.toml").exists())
         self.assertEqual(
@@ -306,16 +341,32 @@ class InstallTransactionTests(unittest.TestCase):
                 )
             return subprocess.CompletedProcess(arguments, 1, "", "unexpected write")
 
-        migrate(self.layout, runner=keychain_reader)
+        migrate(
+            self.layout,
+            runner=keychain_reader,
+            password_writer=lambda arguments, secret: subprocess.CompletedProcess(
+                arguments, 1, "", "must not write"
+            ),
+        )
 
         self.assertEqual(len(calls), 1)
         self.assertIn("find-generic-password", calls[0])
 
     def test_rollback_restores_config_and_removes_new_activation_files(self):
         def successful_runner(arguments, **kwargs):
+            if "find-generic-password" in arguments:
+                return subprocess.CompletedProcess(
+                    arguments, 0, "dummy-deepseek-secret\n", ""
+                )
             return subprocess.CompletedProcess(arguments, 0, "", "")
 
-        backup = migrate(self.layout, runner=successful_runner)
+        backup = migrate(
+            self.layout,
+            runner=successful_runner,
+            password_writer=lambda arguments, secret: subprocess.CompletedProcess(
+                arguments, 0, "", ""
+            ),
+        )
 
         rollback(self.layout, backup, runner=successful_runner, uid=501)
 
