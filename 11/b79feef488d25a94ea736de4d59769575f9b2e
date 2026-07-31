@@ -1,0 +1,40 @@
+src/installer.py
+  s_0e62075836e1f3::t_e433a791f99de4 6-8,10,12-17,39-90,174-199,219-287,290-293,296-300,303-304,307-323,325-327,330-358,444
+  s_0e62075836e1f3::t_10d7cc2d138ef1 4,11,200-218,324,328-329,359-398,437-443,445-448,451-457,463-469
+  s_0e62075836e1f3::t_4caf9f29117445 288-289,294-295,301-302,305-306,399-436,449-450,458-462
+tests/test_installer.py
+  s_0e62075836e1f3::t_704f0ab900373e 1-2,4-5,7,10-11,14,16,18,132-148,193-293
+  s_0e62075836e1f3::t_056027abf0668f 3,12,17,149-192
+  s_0e62075836e1f3::t_2b688418cc696a 19,313-326
+  s_0e62075836e1f3::t_ef9cf94cd1efac 295-312,327
+  s_0e62075836e1f3::t_1acc5be3e16045 294
+  s_0e62075836e1f3::t_bc2f6e538c0593 328
+src/codex_model_router.py
+  s_0e62075836e1f3::t_62fc0ffd1dddb0 4,8-10,269-343
+scripts/rollback.sh
+  s_0e62075836e1f3::t_e8471b47534a96 1-8
+scripts/install.sh
+  s_0e62075836e1f3::t_e8471b47534a96 1-5
+tests/test_router.py
+  s_0e62075836e1f3::t_64e2acbff342f9 16,18,351-414,416
+  s_0e62075836e1f3::t_114af2420c0b7c 415
+  s_0e62075836e1f3::t_3b05321a39d195 417-418
+scripts/uninstall.sh
+  s_0e62075836e1f3::t_e8471b47534a96 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "11b79feef488d25a94ea736de4d59769575f9b2e",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
