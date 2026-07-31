@@ -1,0 +1,21 @@
+src/installer.py
+  s_0e62075836e1f3::t_fe1b62136a6517 5-6,10,13,19,181-223,225-227,231,247-280,375-379,397-403,513-517,520
+tests/test_installer.py
+  s_0e62075836e1f3::t_7af69d53b25246 242-243,246-251,253,255,258-269,271-274,278-282,292-295,298-305,344-350,357-360,363-369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "3a761baccef81a731ffb58fc40955fb514452ea4",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
