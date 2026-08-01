@@ -11,6 +11,7 @@ Codex sends Responses requests to `http://127.0.0.1:17890`. The router validates
 
 - [PROJECT.md](docs/PROJECT.md): 项目总览，含需求背景、关键决策、架构与验证结果
 - [REUSE.md](docs/REUSE.md): 面向他人的复用与交付说明
+- [DESIGN.md](docs/design/codex-model-router-design.md): 原始设计规格与验收标准
 
 ## Installed components
 
@@ -95,6 +96,20 @@ Restore a specific backup:
 ```
 
 Rollback unloads the router and restores the exact backed-up configuration/catalog files. It deliberately leaves the Keychain item and installed source in place so credentials are not deleted implicitly.
+
+## Uninstall
+
+Restore the pre-install Codex configuration and remove the router activation files:
+
+```sh
+./scripts/uninstall.sh
+```
+
+Uninstall restores the latest backup, unloads and deletes the LaunchAgent, and removes the installed router and logs. The Keychain item and timestamped backups are preserved; delete the credential manually if you also want to remove it:
+
+```sh
+security delete-generic-password -a "$(id -un)" -s "codex-model-router.deepseek"
+```
 
 ## Model availability
 

@@ -92,26 +92,25 @@ launchctl bootout "gui/$(id -u)/com.codex.model-router"
 
 回滚会恢复备份的配置与模型目录，但不会删除钥匙串条目和已安装源码。
 
-## 7. 卸载说明
-
-当前 `scripts/uninstall.sh` 的行为等同于回滚（恢复最近备份）。如需彻底卸载，还需要手动执行：
+## 7. 卸载
 
 ```sh
-# 停止并移除启动代理
-launchctl bootout "gui/$(id -u)/com.codex.model-router"
-rm ~/Library/LaunchAgents/com.codex.model-router.plist
+./scripts/uninstall.sh
+```
 
-# 删除钥匙串条目
+卸载会：
+
+1. 恢复最近一次备份的 Codex 配置与模型目录。
+2. 卸载并删除 LaunchAgent。
+3. 删除已安装的路由脚本与日志。
+
+钥匙串条目和备份目录会保留。如需连 Key 一起删除，手动执行：
+
+```sh
 security delete-generic-password \
   -a "$(id -un)" \
   -s "codex-model-router.deepseek"
-
-# 删除安装文件（可选，如需完全清理）
-rm -rf ~/.codex/model-router
-rm ~/.codex/models-router.json
 ```
-
-> 如需保留 Codex 原生 GPT 使用，卸载后请确认 `~/.codex/config.toml` 中 `model_provider` 恢复为官方 OpenAI 配置（回滚操作会自动处理）。
 
 ## 8. 常见问题
 

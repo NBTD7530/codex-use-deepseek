@@ -510,6 +510,41 @@ def latest_backup(layout):
     return candidates[-1]
 
 
+def uninstall(layout, runner=subprocess.run, uid=None):
+    """Stop the router and remove activation files.
+
+    Restores the latest backup when one exists so Codex returns to its
+    pre-install configuration. The Keychain item and timestamped backups
+    are preserved on purpose; credentials are never deleted implicitly.
+    """
+    backup_root = layout.install_dir / "backups"
+    has_backup = backup_root.exists() and any(
+        path.is_dir() for path in backup_root.iterdir()
+    )
+    if has_backup:
+        rollback(layout, latest_backup(layout), runner=runner, uid=uid)
+    else:
+        user_id = os.getuid() if uid is None else uid
+        runner(
+            [
+                "/bin/launchctl",
+                "bootout",
+                "gui/{0}/{1}".format(user_id, LAUNCH_AGENT_LABEL),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    for path in (layout.launch_agent, layout.installed_router):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+    logs_dir = layout.install_dir / "logs"
+    if logs_dir.exists():
+        shutil.rmtree(logs_dir)
+
+
 def install(
     layout,
     runner=subprocess.run,
@@ -529,7 +564,7 @@ def install(
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("install", "rollback"))
+    parser.add_argument("command", choices=("install", "rollback", "uninstall"))
     parser.add_argument("backup", nargs="?")
     arguments = parser.parse_args(argv)
     project_root = Path(__file__).resolve().parents[1]
@@ -544,6 +579,10 @@ def main(argv=None):
             rollback(layout, backup)
             print("Rolled back Codex model router")
             print("Backup: {0}".format(backup))
+        elif arguments.command == "uninstall":
+            uninstall(layout)
+            print("Uninstalled Codex model router")
+            print("Keychain item and backups were preserved")
     except InstallError as error:
         parser.exit(1, "Installation failed: {0}\n".format(error))
 

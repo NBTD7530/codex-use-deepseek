@@ -63,7 +63,7 @@ Codex Desktop
 
 ## 6. 当前状态与已知问题
 
-1. `scripts/uninstall.sh` 目前与 `scripts/rollback.sh` 行为相同（恢复备份），并非真正卸载；钥匙串条目和已安装源码不会被自动删除。
+1. `scripts/uninstall.sh` 已实现真正卸载：恢复备份配置、卸载并删除 LaunchAgent、清理已安装脚本与日志；钥匙串条目和备份目录按设计保留。
 2. `~/.codex/config.toml` 中 `[model_providers.local_router]` 与生效的 `[model_providers.custom]` 内容重复，属于安装期冗余段，当前不生效。
 3. 修改模型目录或配置后，需要完整退出并重新启动 Codex Desktop（⌘Q）才会刷新界面模型列表。
 4. DeepSeek V4 Pro 需要等待上游开放后才可实际使用。
@@ -76,7 +76,8 @@ codex-model-router/
 ├── config/deepseek-models.json
 ├── docs/
 │   ├── PROJECT.md      # 本文件：会话转项目总览
-│   └── REUSE.md        # 复用/交付说明
+│   ├── REUSE.md        # 复用/交付说明
+│   └── design/         # 设计规格与验收标准
 ├── scripts/
 │   ├── install.sh
 │   ├── rollback.sh

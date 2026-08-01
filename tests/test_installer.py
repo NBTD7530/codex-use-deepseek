@@ -1,5 +1,6 @@
 import json
 import plistlib
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -19,6 +20,7 @@ from src.installer import (
     render_launch_agent,
     rollback,
     rewrite_codex_config,
+    uninstall,
 )
 
 
@@ -402,6 +404,91 @@ class InstallTransactionTests(unittest.TestCase):
         self.assertFalse(
             (self.home / "Library/LaunchAgents/com.codex.model-router.plist").exists()
         )
+
+
+class UninstallTests(unittest.TestCase):
+    def _migrated_layout(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        home = root / "home"
+        project = root / "project"
+        (home / ".codex").mkdir(parents=True)
+        (project / "config").mkdir(parents=True)
+        (project / "src").mkdir(parents=True)
+        (home / ".codex" / "config.toml").write_text(
+            SAMPLE_CONFIG, encoding="utf-8"
+        )
+        (home / ".codex" / "models_cache.json").write_text(
+            json.dumps({"models": [{"slug": "gpt-5.6-sol"}]}), encoding="utf-8"
+        )
+        (project / "config" / "deepseek-models.json").write_text(
+            json.dumps(
+                {
+                    "models": [
+                        {"slug": "deepseek-v4-flash"},
+                        {"slug": "deepseek-v4-pro"},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (project / "src" / "codex_model_router.py").write_text(
+            "#!/usr/bin/env python3\n", encoding="utf-8"
+        )
+        layout = InstallLayout(home=home, project_root=project)
+
+        def successful_runner(arguments, **kwargs):
+            if "find-generic-password" in arguments:
+                return subprocess.CompletedProcess(
+                    arguments, 0, "dummy-deepseek-secret\n", ""
+                )
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        migrate(
+            layout,
+            runner=successful_runner,
+            password_writer=lambda arguments, secret: subprocess.CompletedProcess(
+                arguments, 0, "", ""
+            ),
+        )
+        return layout, successful_runner
+
+    def test_uninstall_restores_config_and_removes_activation_files(self):
+        layout, successful_runner = self._migrated_layout()
+        calls = []
+
+        def recording_runner(arguments, **kwargs):
+            calls.append(arguments)
+            return successful_runner(arguments, **kwargs)
+
+        uninstall(layout, runner=recording_runner, uid=501)
+
+        self.assertEqual(
+            layout.config.read_text(encoding="utf-8"), SAMPLE_CONFIG
+        )
+        self.assertFalse(layout.merged_catalog.exists())
+        self.assertFalse(layout.launch_agent.exists())
+        self.assertFalse(layout.installed_router.exists())
+        self.assertFalse((layout.install_dir / "logs").exists())
+        self.assertTrue((layout.install_dir / "backups").exists())
+        self.assertTrue(any((layout.install_dir / "backups").iterdir()))
+        self.assertFalse(
+            any(
+                command in arguments
+                for arguments in calls
+                for command in ("add-generic-password", "find-generic-password")
+            )
+        )
+
+    def test_uninstall_without_backup_still_removes_activation_files(self):
+        layout, successful_runner = self._migrated_layout()
+        shutil.rmtree(layout.install_dir / "backups")
+
+        uninstall(layout, runner=successful_runner, uid=501)
+
+        self.assertFalse(layout.launch_agent.exists())
+        self.assertFalse(layout.installed_router.exists())
 
 
 if __name__ == "__main__":
