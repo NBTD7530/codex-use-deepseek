@@ -1,0 +1,36 @@
+tests/test_installer.py
+  s_0e62075836e1f3::t_854f10e8657943 3,23,409-491
+  s_0e62075836e1f3::t_54530f114830ea 492-493
+docs/PROJECT.md
+  s_0e62075836e1f3::t_9a2ef37e8baf24 66,79-80
+README.md
+  s_0e62075836e1f3::t_9a2ef37e8baf24 14,100-112
+  s_0e62075836e1f3::t_6db72082c3a120 113
+LICENSE
+  s_0e62075836e1f3::t_9a2ef37e8baf24 1-21
+src/installer.py
+  s_0e62075836e1f3::t_854f10e8657943 513-547,567,582-585
+scripts/uninstall.sh
+  s_0e62075836e1f3::t_854f10e8657943 5
+.github/workflows/ci.yml
+  s_0e62075836e1f3::t_9a2ef37e8baf24 1-21
+docs/REUSE.md
+  s_0e62075836e1f3::t_9a2ef37e8baf24 95,98-105,107-108
+  s_0e62075836e1f3::t_3b52f10ab8aef1 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "708e631e0e9e7fbcc10f3774f66b6c38ccf767c5",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
