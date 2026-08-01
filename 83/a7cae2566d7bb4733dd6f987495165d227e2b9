@@ -1,0 +1,19 @@
+docs/HANDOFF.md
+  s_0e62075836e1f3::t_1f3cc24689294c 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "83a7cae2566d7bb4733dd6f987495165d227e2b9",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
