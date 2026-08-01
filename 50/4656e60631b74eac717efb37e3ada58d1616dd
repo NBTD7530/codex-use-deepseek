@@ -1,0 +1,23 @@
+docs/REUSE.md
+  s_0e62075836e1f3::t_2d5fd1193ca6b6 1-139
+README.md
+  s_0e62075836e1f3::t_2d5fd1193ca6b6 10-14
+docs/PROJECT.md
+  s_0e62075836e1f3::t_2d5fd1193ca6b6 1-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "504656e60631b74eac717efb37e3ada58d1616dd",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
