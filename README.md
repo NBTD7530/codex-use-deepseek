@@ -122,3 +122,7 @@ The installed picker includes current GPT entries, DeepSeek V4 Flash, and DeepSe
 - The macOS HTTPS proxy is used through an HTTP CONNECT tunnel; bearer headers remain inside target TLS.
 - Unknown models and requests without a Codex bearer header are rejected locally.
 - CC Switch is not queried, modified, or required at runtime.
+
+## License
+
+[Apache License 2.0](LICENSE)
