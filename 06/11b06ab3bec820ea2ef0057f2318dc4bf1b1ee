@@ -1,0 +1,21 @@
+README.md
+  s_0e62075836e1f3::t_63343e3a7e8937 125-128
+LICENSE
+  s_0e62075836e1f3::t_55bab1d14b6aa0 1-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "0611b06ab3bec820ea2ef0057f2318dc4bf1b1ee",
+  "prompts": {},
+  "sessions": {
+    "s_0e62075836e1f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fb799-96e0-7ef1-a983-b448b3139ec9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "王世桢 <wangshizhen.7530@jd.com>"
+    }
+  }
+}
