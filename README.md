@@ -7,6 +7,11 @@ This local router lets the stock Codex desktop model picker use two authenticati
 
 Codex sends Responses requests to `http://127.0.0.1:17890`. The router validates the selected model against the installed catalog, chooses one upstream, isolates credentials, and streams the upstream response back unchanged.
 
+## Documentation
+
+- [PROJECT.md](docs/PROJECT.md): 项目总览，含需求背景、关键决策、架构与验证结果
+- [REUSE.md](docs/REUSE.md): 面向他人的复用与交付说明
+
 ## Installed components
 
 - Router: `~/.codex/model-router/codex_model_router.py`
