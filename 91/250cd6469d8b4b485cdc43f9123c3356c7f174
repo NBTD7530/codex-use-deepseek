@@ -1,0 +1,57 @@
+docs/design/codex-model-router-design.md
+  s_49b587fc2535e4::t_dc53cc4fc5f35d 5-6
+  s_46fd2767135557::t_9dcb2ac1dc7d80 13,24,92
+tests/test_router.py
+  s_49b587fc2535e4::t_55ae261413eadf 475-542
+  s_46fd2767135557::t_9dcb2ac1dc7d80 100,113,175,241,317,441
+README.md
+  s_49b587fc2535e4::t_dc53cc4fc5f35d 80,116-120
+  s_46fd2767135557::t_9dcb2ac1dc7d80 6
+tests/test_installer.py
+  s_49b587fc2535e4::t_55ae261413eadf 58,64
+  s_46fd2767135557::t_9dcb2ac1dc7d80 27,63,70-71,84,87,226-227,325,430
+docs/HANDOFF.md
+  s_49b587fc2535e4::t_dc53cc4fc5f35d 13,39-46
+  s_49b587fc2535e4::t_b20e090de3be88 47
+src/codex_model_router.py
+  s_49b587fc2535e4::t_55ae261413eadf 52-97,251-256
+  s_46fd2767135557::t_9dcb2ac1dc7d80 19
+  s_49b587fc2535e4::t_4e87f4fd7c02f0 257
+config/deepseek-models.json
+  s_49b587fc2535e4::t_55ae261413eadf 11-12,14
+  s_46fd2767135557::t_9dcb2ac1dc7d80 4,32
+docs/PROJECT.md
+  s_49b587fc2535e4::t_dc53cc4fc5f35d 35,60,92-106
+  s_46fd2767135557::t_9dcb2ac1dc7d80 62
+src/installer.py
+  s_49b587fc2535e4::t_55ae261413eadf 46,117-118
+  s_49b587fc2535e4::t_368c58e5a5b681 116
+docs/REUSE.md
+  s_46fd2767135557::t_9dcb2ac1dc7d80 69
+  s_49b587fc2535e4::t_dc53cc4fc5f35d 72-73,81-87
+  s_49b587fc2535e4::t_3d145e32e6c4ef 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91250cd6469d8b4b485cdc43f9123c3356c7f174",
+  "prompts": {},
+  "sessions": {
+    "s_46fd2767135557": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01a0b049-33ea-7253-9eaf-b540def95f2f",
+        "model": "unknown"
+      },
+      "human_author": "NBTD7530 <862554643@qq.com>"
+    },
+    "s_49b587fc2535e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b049-33ea-7253-9eaf-b540def95f2f",
+        "model": "deepseek-flash"
+      },
+      "human_author": "NBTD7530 <862554643@qq.com>"
+    }
+  }
+}
