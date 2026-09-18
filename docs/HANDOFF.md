@@ -42,6 +42,7 @@
 - Flash 开启图片输入：`input_modalities` 为 `["text","image"]`，`supports_image_detail_original` 为 `true`；粘贴图片提示“不支持图像输入”是因为运行中的 Codex 仍缓存旧目录，需 ⌘Q 完全退出后重启。
 - 路由兼容修复：新增 `normalize_deepseek_payload()`，把 `call_id` 非字符串的 `function_call_output` 改写为普通用户文本后再转发，避免 DeepSeek 拒收孤儿工具结果。
 - 安装器迁移：`merge_catalog()` 会丢弃历史遗留的 `deepseek-v4-flash` 条目。
+- 安装器保留默认模型：`rewrite_codex_config()` 不再无条件把 `model` 改写成 `gpt-5.6-sol`，而是保留当前默认值（模型已不在目录中时回退）。
 
 仓库已同步以上改造；本机 `~/.codex/model-router/codex_model_router.py` 与仓库 `src/codex_model_router.py` 内容一致。
 

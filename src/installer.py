@@ -44,6 +44,8 @@ wire_api = "responses"
 KEYCHAIN_SERVICE = "codex-model-router.deepseek"
 LAUNCH_AGENT_LABEL = "com.codex.model-router"
 LEGACY_DEEPSEEK_SLUGS = frozenset({"deepseek-v4-flash"})
+DEFAULT_MODEL = "gpt-5.6-sol"
+TOP_LEVEL_MODEL_ASSIGNMENT = re.compile(r"^\s*model\s*=\s*([\"'])(.*?)\1\s*$")
 
 
 class InstallError(RuntimeError):
@@ -140,8 +142,26 @@ def extract_deepseek_key(text):
     return None
 
 
-def rewrite_codex_config(text):
-    """Point Codex at the router while preserving unrelated TOML sections."""
+def configured_model(text):
+    """Return the top-level `model` value, or None when it is not set."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            break
+        match = TOP_LEVEL_MODEL_ASSIGNMENT.match(line)
+        if match:
+            quote, value = match.groups()
+            return json.loads('"{0}"'.format(value)) if quote == '"' else value
+    return None
+
+
+def rewrite_codex_config(text, available_models=None):
+    """Point Codex at the router while keeping the current default model.
+
+    The default is preserved only when the merged catalog can still serve it;
+    otherwise the installer falls back to DEFAULT_MODEL so a stale or removed
+    model name cannot break the app after reinstall.
+    """
     lines = text.splitlines(keepends=True)
     first_section = next(
         (
@@ -160,8 +180,14 @@ def rewrite_codex_config(text):
             continue
         top_level.append(line)
 
+    current_model = configured_model(text)
+    keep_current = (
+        isinstance(current_model, str)
+        and bool(current_model)
+        and (available_models is None or current_model in available_models)
+    )
     migrated_top = [
-        'model = "gpt-5.6-sol"\n',
+        'model = "{0}"\n'.format(current_model if keep_current else DEFAULT_MODEL),
         'model_provider = "local_router"\n',
         'model_catalog_json = "~/.codex/models-router.json"\n',
     ]
@@ -407,7 +433,8 @@ def migrate(
     cache = json.loads(layout.model_cache.read_text(encoding="utf-8"))
     deepseek = json.loads(layout.deepseek_catalog.read_text(encoding="utf-8"))
     merged = merge_catalog(cache, deepseek)
-    migrated_config = rewrite_codex_config(original_config)
+    available_models = {model["slug"] for model in merged["models"]}
+    migrated_config = rewrite_codex_config(original_config, available_models)
     launch_agent = render_launch_agent(layout.home, Path("/usr/bin/python3"))
 
     touched = (

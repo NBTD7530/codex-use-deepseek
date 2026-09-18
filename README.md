@@ -79,6 +79,10 @@ launchctl bootout "gui/$(id -u)/com.codex.model-router"
 
 The installer checks that port `17890` is available, creates another timestamped backup, verifies the existing Keychain item, refreshes the mixed catalog, installs the new router, and restarts the LaunchAgent. Refreshing the catalog also drops the retired `deepseek-v4-flash` entry if an older install left it behind.
 
+The model you currently use as the default is kept across reinstall, as long as the refreshed catalog can still serve it; when the configured model is missing from the catalog the installer falls back to `gpt-5.6-sol`. `model_provider` and `model_catalog_json` are always rewritten to point at the router.
+
+Session storage is outside the installer footprint. Transcripts in `~/.codex/sessions` and `~/.codex/archived_sessions`, and the sidebar state in `~/.codex/.codex-global-state.json`, are never read, rewritten, or backed up by `install.sh`, `rollback.sh`, or `uninstall.sh`, so the task list in the Codex sidebar survives install, reinstall, and uninstall.
+
 The router discovers the enabled macOS HTTPS proxy when it starts. Restart the LaunchAgent after changing system proxy settings.
 
 ## Rollback

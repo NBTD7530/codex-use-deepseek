@@ -100,6 +100,8 @@ codex-model-router/
 | 图片输入 | Flash 条目 `input_modalities` 增加 `image`，`supports_image_detail_original` 置为 `true`；Pro 仍为纯文本 | `config/deepseek-models.json` |
 | 工具结果兼容 | 请求中 `call_id` 非字符串的 `function_call_output`（孤儿工具结果）在发往 DeepSeek 前改写为普通用户文本，其余请求体原样转发 | `src/codex_model_router.py` 的 `normalize_deepseek_payload()` |
 | 旧名迁移 | 重新安装时合并目录会丢弃历史遗留的 `deepseek-v4-flash` 条目，避免新旧两个 slug 并存 | `src/installer.py` 的 `merge_catalog()` |
+| 默认模型保留 | 重装时保留当前 `model` 默认值（只要新目录仍能提供该模型），否则回退到 `gpt-5.6-sol`；`model_provider`/`model_catalog_json` 仍强制指向本地路由 | `src/installer.py` 的 `rewrite_codex_config()` |
+| 会话列表保留 | 脚本写入范围不含 `~/.codex/sessions`、`~/.codex/archived_sessions` 与 `~/.codex/.codex-global-state.json`，安装/重装/卸载后左侧会话列表与置顶状态不变 | `tests/test_installer.py` 的 `SessionStorageTests` |
 
 本机复验（2026-09-17）：目录中只有 `deepseek-flash` 与 `deepseek-v4-pro`；以 `deepseek-flash` 发出的真实 Responses 请求返回 HTTP 200，响应 `model` 为 `deepseek-flash`；健康检查 `{"status":"ok"}`。
 

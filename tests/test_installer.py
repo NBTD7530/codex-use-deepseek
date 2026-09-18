@@ -106,7 +106,7 @@ class ConfigMigrationTests(unittest.TestCase):
     def test_rewrite_preserves_unrelated_sections_and_removes_plaintext_secret(self):
         rewritten = rewrite_codex_config(SAMPLE_CONFIG)
 
-        self.assertIn('model = "gpt-5.6-sol"', rewritten)
+        self.assertIn('model = "deepseek-flash"', rewritten)
         self.assertIn('model_provider = "local_router"', rewritten)
         self.assertIn(
             'model_catalog_json = "~/.codex/models-router.json"', rewritten
@@ -131,6 +131,26 @@ class ConfigMigrationTests(unittest.TestCase):
         once = rewrite_codex_config(SAMPLE_CONFIG)
 
         self.assertEqual(rewrite_codex_config(once), once)
+
+    def test_rewrite_keeps_the_default_model_the_catalog_can_serve(self):
+        rewritten = rewrite_codex_config(
+            SAMPLE_CONFIG, {"gpt-5.6-sol", "deepseek-flash"}
+        )
+
+        self.assertIn('model = "deepseek-flash"', rewritten)
+
+    def test_rewrite_falls_back_when_the_default_model_is_unavailable(self):
+        rewritten = rewrite_codex_config(SAMPLE_CONFIG, {"gpt-5.6-sol"})
+
+        self.assertIn('model = "gpt-5.6-sol"', rewritten)
+        self.assertNotIn('model = "deepseek-flash"', rewritten)
+
+    def test_rewrite_defaults_when_no_model_is_configured(self):
+        text = SAMPLE_CONFIG.replace('model = "deepseek-flash"\n', "")
+
+        rewritten = rewrite_codex_config(text, {"gpt-5.6-sol"})
+
+        self.assertIn('model = "gpt-5.6-sol"', rewritten)
 
 
 class LaunchAgentTests(unittest.TestCase):
@@ -314,6 +334,7 @@ class InstallTransactionTests(unittest.TestCase):
         )
         migrated = self.config_path.read_text(encoding="utf-8")
         self.assertIn('model_provider = "local_router"', migrated)
+        self.assertIn('model = "deepseek-flash"', migrated)
         self.assertNotIn("dummy-deepseek-secret", migrated)
         catalog = json.loads(
             (self.home / ".codex" / "models-router.json").read_text(
@@ -490,6 +511,82 @@ class UninstallTests(unittest.TestCase):
 
         self.assertFalse(layout.launch_agent.exists())
         self.assertFalse(layout.installed_router.exists())
+
+
+class SessionStorageTests(unittest.TestCase):
+    """Session transcripts and sidebar state are outside the installer footprint."""
+
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        root = Path(self.temporary_directory.name)
+        self.home = root / "home"
+        project = root / "project"
+        (self.home / ".codex" / "sessions" / "2026" / "09").mkdir(parents=True)
+        (self.home / ".codex" / "archived_sessions").mkdir(parents=True)
+        (project / "config").mkdir(parents=True)
+        (project / "src").mkdir(parents=True)
+        (self.home / ".codex" / "config.toml").write_text(
+            SAMPLE_CONFIG, encoding="utf-8"
+        )
+        (self.home / ".codex" / "models_cache.json").write_text(
+            json.dumps({"models": [{"slug": "gpt-5.6-sol"}]}), encoding="utf-8"
+        )
+        (project / "config" / "deepseek-models.json").write_text(
+            json.dumps(
+                {
+                    "models": [
+                        {"slug": "deepseek-flash"},
+                        {"slug": "deepseek-v4-pro"},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (project / "src" / "codex_model_router.py").write_text(
+            "#!/usr/bin/env python3\n", encoding="utf-8"
+        )
+        self.layout = InstallLayout(home=self.home, project_root=project)
+
+        self.session_files = {
+            self.home / ".codex" / "sessions" / "2026" / "09" / "rollout.jsonl": (
+                b'{"type":"session","id":"active"}\n'
+            ),
+            self.home / ".codex" / "archived_sessions" / "rollout-old.jsonl": (
+                b'{"type":"session","id":"archived"}\n'
+            ),
+            self.home / ".codex" / ".codex-global-state.json": json.dumps(
+                {
+                    "pinned-thread-ids": ["019f83ff-618e-7c20-9b3e-d9d9add18b2d"],
+                    "projectless-thread-ids": [],
+                }
+            ).encode("utf-8"),
+        }
+        for path, content in self.session_files.items():
+            path.write_bytes(content)
+
+    def _runner(self, arguments, **kwargs):
+        if "find-generic-password" in arguments:
+            return subprocess.CompletedProcess(
+                arguments, 0, "dummy-deepseek-secret\n", ""
+            )
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    def test_install_and_uninstall_leave_session_storage_alone(self):
+        migrate(
+            self.layout,
+            runner=self._runner,
+            password_writer=lambda arguments, secret: subprocess.CompletedProcess(
+                arguments, 0, "", ""
+            ),
+        )
+        after_install = {path: path.read_bytes() for path in self.session_files}
+
+        uninstall(self.layout, runner=self._runner, uid=501)
+        after_uninstall = {path: path.read_bytes() for path in self.session_files}
+
+        self.assertEqual(after_install, self.session_files)
+        self.assertEqual(after_uninstall, self.session_files)
 
 
 if __name__ == "__main__":

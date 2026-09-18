@@ -80,6 +80,10 @@ launchctl bootout "gui/$(id -u)/com.codex.model-router"
 
 重装会重新生成混合模型目录，并自动清理历史遗留的 `deepseek-v4-flash` 旧条目；`launchctl kickstart` 返回时服务可能尚未绑定端口，以 `/health` 返回 `{"status":"ok"}` 作为启动成功的判据。
 
+当前默认模型会被保留（例如默认选了 `deepseek-flash`，重装后仍是它）；只有该模型已不在新目录中时，安装器才回退到 `gpt-5.6-sol`。`model_provider` 与 `model_catalog_json` 始终会被改写为指向本地路由。
+
+会话与侧边栏不受影响：脚本的写入范围只有 `~/.codex/config.toml`、`~/.codex/models-router.json`、`~/.codex/model-router/` 和 LaunchAgent；`~/.codex/sessions`、`~/.codex/archived_sessions`、`~/.codex/.codex-global-state.json`（左侧会话列表与置顶/已读状态）既不改写也不纳入备份，因此安装、重装、卸载后会话列表保持不变。
+
 ## 5.1 常见问题
 
 - 粘贴图片被提示“不支持图像输入”：当前运行的 Codex 仍缓存着旧模型目录，⌘Q 完全退出后重启即可。
