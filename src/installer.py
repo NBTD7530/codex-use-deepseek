@@ -43,6 +43,7 @@ wire_api = "responses"
 '''
 KEYCHAIN_SERVICE = "codex-model-router.deepseek"
 LAUNCH_AGENT_LABEL = "com.codex.model-router"
+LEGACY_DEEPSEEK_SLUGS = frozenset({"deepseek-v4-flash"})
 
 
 class InstallError(RuntimeError):
@@ -112,8 +113,9 @@ def merge_catalog(cache, deepseek):
     for model in cache_models:
         if not isinstance(model, dict) or not isinstance(model.get("slug"), str):
             raise ValueError("every official model must contain a string slug")
-        if model["slug"] not in deepseek_slugs:
-            official_models.append(model)
+        if model["slug"] in deepseek_slugs or model["slug"] in LEGACY_DEEPSEEK_SLUGS:
+            continue
+        official_models.append(model)
 
     return {"models": official_models + deepseek_models}
 

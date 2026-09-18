@@ -97,7 +97,7 @@ class RoutingPolicyTests(unittest.TestCase):
                     "models": [
                         {"slug": "gpt-5.6-sol"},
                         {"slug": "codex-auto-review"},
-                        {"slug": "deepseek-v4-flash"},
+                        {"slug": "deepseek-flash"},
                         {"slug": "deepseek-v4-pro"},
                     ]
                 }
@@ -110,7 +110,7 @@ class RoutingPolicyTests(unittest.TestCase):
 
         self.assertEqual(policy.choose("gpt-5.6-sol"), "openai")
         self.assertEqual(policy.choose("codex-auto-review"), "openai")
-        self.assertEqual(policy.choose("deepseek-v4-flash"), "deepseek")
+        self.assertEqual(policy.choose("deepseek-flash"), "deepseek")
         self.assertEqual(policy.choose("deepseek-v4-pro"), "deepseek")
 
     def test_unknown_model_is_rejected(self):
@@ -172,7 +172,7 @@ class RouterIntegrationTests(unittest.TestCase):
                 {
                     "models": [
                         {"slug": "gpt-5.6-sol"},
-                        {"slug": "deepseek-v4-flash"},
+                        {"slug": "deepseek-flash"},
                     ]
                 }
             ),
@@ -238,7 +238,7 @@ class RouterErrorTests(unittest.TestCase):
                 {
                     "models": [
                         {"slug": "gpt-5.6-sol"},
-                        {"slug": "deepseek-v4-flash"},
+                        {"slug": "deepseek-flash"},
                     ]
                 }
             ),
@@ -314,7 +314,7 @@ class RouterErrorTests(unittest.TestCase):
     def test_missing_deepseek_key_returns_503(self):
         router = self.new_router(key_provider=lambda: None)
         with running_server(self.upstream), running_server(router):
-            status, body = self.post(router, {"model": "deepseek-v4-flash"})
+            status, body = self.post(router, {"model": "deepseek-flash"})
 
         self.assertEqual(status, 503)
         self.assertEqual(json.loads(body)["error"]["code"], "missing_deepseek_key")
@@ -438,7 +438,7 @@ class ProductionConfigurationTests(unittest.TestCase):
                     {
                         "models": [
                             {"slug": "gpt-5.6-sol"},
-                            {"slug": "deepseek-v4-flash"},
+                            {"slug": "deepseek-flash"},
                         ]
                     }
                 ),
@@ -470,6 +470,74 @@ class ProductionConfigurationTests(unittest.TestCase):
                 key_provider=lambda: "unused",
                 proxy_discovery=lambda: None,
             )
+
+
+class DeepSeekPayloadCompatibilityTests(unittest.TestCase):
+    def test_orphan_function_outputs_become_user_messages(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        catalog_path = Path(temporary_directory.name) / "models.json"
+        catalog_path.write_text(
+            json.dumps({"models": [{"slug": "deepseek-flash"}]}),
+            encoding="utf-8",
+        )
+        upstream = new_upstream([b'{"ok":true}'])
+        self.addCleanup(upstream.server_close)
+        upstream.release_remaining.set()
+        router = RouterServer(
+            ("127.0.0.1", 0),
+            RoutingPolicy.from_catalog(catalog_path),
+            {
+                "deepseek": UpstreamTarget(
+                    scheme="http",
+                    host="127.0.0.1",
+                    port=upstream.server_address[1],
+                    base_path="",
+                )
+            },
+            key_provider=lambda: "ds-secret",
+        )
+        payload = {
+            "model": "deepseek-flash",
+            "input": [
+                {
+                    "type": "function_call_output",
+                    "id": "fco_orphan",
+                    "namespace": "codex_app",
+                    "name": "send_message_to_thread",
+                    "output": "<codex_delegation>keep this context</codex_delegation>",
+                },
+                {
+                    "type": "function_call_output",
+                    "id": "fco_valid",
+                    "call_id": "call_valid",
+                    "output": "done",
+                },
+            ],
+        }
+
+        with running_server(upstream), running_server(router):
+            status, _ = request_router(router, body=json.dumps(payload).encode())
+
+        self.assertEqual(status, 200)
+        forwarded = json.loads(upstream.received_body)
+        self.assertEqual(
+            forwarded["input"][0],
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "Tool output from codex_app.send_message_to_thread:\n"
+                            "<codex_delegation>keep this context</codex_delegation>"
+                        ),
+                    }
+                ],
+            },
+        )
+        self.assertEqual(forwarded["input"][1], payload["input"][1])
 
 
 if __name__ == "__main__":

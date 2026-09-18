@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 
-DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
+DEEPSEEK_MODELS = frozenset({"deepseek-flash", "deepseek-v4-pro"})
 LOGGER = logging.getLogger("codex_model_router")
 LOGGER.addHandler(logging.NullHandler())
 HOP_BY_HOP_HEADERS = frozenset(
@@ -47,6 +47,52 @@ class UnknownModelError(ValueError):
 
 class MissingDeepSeekKeyError(RuntimeError):
     """Raised when DeepSeek routing is requested without a Keychain secret."""
+
+
+def normalize_deepseek_payload(payload):
+    """Preserve orphan Codex tool results as ordinary DeepSeek input context."""
+    inputs = payload.get("input") if isinstance(payload, dict) else None
+    if not isinstance(inputs, list):
+        return payload
+
+    normalized_inputs = []
+    changed = False
+    for item in inputs:
+        is_orphan_output = (
+            isinstance(item, dict)
+            and item.get("type") == "function_call_output"
+            and not isinstance(item.get("call_id"), str)
+        )
+        if not is_orphan_output:
+            normalized_inputs.append(item)
+            continue
+
+        source_parts = [
+            value
+            for value in (item.get("namespace"), item.get("name"))
+            if isinstance(value, str) and value
+        ]
+        source = ".".join(source_parts)
+        prefix = "Tool output from {0}:".format(source) if source else "Tool output:"
+        output = item.get("output")
+        if not isinstance(output, str):
+            output = json.dumps(output, ensure_ascii=False, separators=(",", ":"))
+        normalized_inputs.append(
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "{0}\n{1}".format(prefix, output)}
+                ],
+            }
+        )
+        changed = True
+
+    if not changed:
+        return payload
+    normalized_payload = dict(payload)
+    normalized_payload["input"] = normalized_inputs
+    return normalized_payload
 
 
 class RoutingPolicy:
@@ -201,6 +247,13 @@ class RouterHandler(BaseHTTPRequestHandler):
         except UnknownModelError:
             self._reject(400, "unknown_model", model, started_at)
             return
+
+        if route == "deepseek":
+            normalized_payload = normalize_deepseek_payload(payload)
+            if normalized_payload is not payload:
+                body = json.dumps(
+                    normalized_payload, ensure_ascii=False, separators=(",", ":")
+                ).encode("utf-8")
 
         try:
             deepseek_key = (

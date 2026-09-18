@@ -32,7 +32,7 @@ Codex Desktop
        ▼
 本地路由  http://127.0.0.1:17890
   ├─ gpt-*            → OpenAI 上游（保留 ChatGPT 登录态）
-  └─ deepseek-v4-*    → api.deepseek.com（注入 Keychain API Key）
+  └─ deepseek-flash / deepseek-v4-pro → api.deepseek.com（注入 Keychain API Key）
 ```
 
 路由只放行模型目录中登记的模型；未知模型、缺少 Codex 鉴权头、缺少 DeepSeek Key 等情况均在本地直接拒绝，不会打到上游。
@@ -57,9 +57,9 @@ Codex Desktop
 - Codex 登录态：`Logged in using ChatGPT`。
 - Keychain：服务/账号匹配，Key 存在且可读，`config.toml` 无明文 Key。
 - GPT 请求：经路由转发 HTTP 200。
-- DeepSeek V4 Flash：经路由转发 HTTP 200，Key 有效。
+- DeepSeek Flash：经路由转发 HTTP 200，Key 有效。
 - DeepSeek V4 Pro：上游返回 HTTP 400，官方提示 Codex 集成将于 2026 年 8 月上旬开放，当前请使用 Flash。
-- 模型列表：新启动的 app-server `model/list` 已返回 `deepseek-v4-flash` 与 `deepseek-v4-pro`。
+- 模型列表：新启动的 app-server `model/list` 已返回 `deepseek-flash` 与 `deepseek-v4-pro`。
 
 ## 6. 当前状态与已知问题
 
@@ -89,3 +89,18 @@ codex-model-router/
     ├── test_installer.py
     └── test_router.py
 ```
+
+## 8. 变更记录
+
+### 2026-09-17（来源：`发布 DeepSeek` 会话）
+
+| 改造点 | 内容 | 落点 |
+| --- | --- | --- |
+| 模型改名 | slug `deepseek-v4-flash` → `deepseek-flash`，显示名 `DeepSeek-V4-Flash` → `DeepSeek-Flash`，`deepseek-v4-pro` 不变 | 模型目录模板、路由白名单、README/文档 |
+| 图片输入 | Flash 条目 `input_modalities` 增加 `image`，`supports_image_detail_original` 置为 `true`；Pro 仍为纯文本 | `config/deepseek-models.json` |
+| 工具结果兼容 | 请求中 `call_id` 非字符串的 `function_call_output`（孤儿工具结果）在发往 DeepSeek 前改写为普通用户文本，其余请求体原样转发 | `src/codex_model_router.py` 的 `normalize_deepseek_payload()` |
+| 旧名迁移 | 重新安装时合并目录会丢弃历史遗留的 `deepseek-v4-flash` 条目，避免新旧两个 slug 并存 | `src/installer.py` 的 `merge_catalog()` |
+
+本机复验（2026-09-17）：目录中只有 `deepseek-flash` 与 `deepseek-v4-pro`；以 `deepseek-flash` 发出的真实 Responses 请求返回 HTTP 200，响应 `model` 为 `deepseek-flash`；健康检查 `{"status":"ok"}`。
+
+排障提示：`launchctl kickstart` 返回时服务可能尚未完成端口绑定，属启动时序竞争；判断服务状态应以 `/health` 返回 `{"status":"ok"}` 为准。

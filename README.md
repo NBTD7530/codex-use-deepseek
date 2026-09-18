@@ -3,7 +3,7 @@
 This local router lets the stock Codex desktop model picker use two authentication paths without CC Switch:
 
 - GPT models use the official ChatGPT login managed by Codex.
-- `deepseek-v4-flash` and `deepseek-v4-pro` use a DeepSeek API key stored in the macOS login Keychain.
+- `deepseek-flash` and `deepseek-v4-pro` use a DeepSeek API key stored in the macOS login Keychain.
 
 Codex sends Responses requests to `http://127.0.0.1:17890`. The router validates the selected model against the installed catalog, chooses one upstream, isolates credentials, and streams the upstream response back unchanged.
 
@@ -77,7 +77,7 @@ launchctl bootout "gui/$(id -u)/com.codex.model-router"
 ./scripts/install.sh
 ```
 
-The installer checks that port `17890` is available, creates another timestamped backup, verifies the existing Keychain item, refreshes the mixed catalog, installs the new router, and restarts the LaunchAgent.
+The installer checks that port `17890` is available, creates another timestamped backup, verifies the existing Keychain item, refreshes the mixed catalog, installs the new router, and restarts the LaunchAgent. Refreshing the catalog also drops the retired `deepseek-v4-flash` entry if an older install left it behind.
 
 The router discovers the enabled macOS HTTPS proxy when it starts. Restart the LaunchAgent after changing system proxy settings.
 
@@ -113,7 +113,11 @@ security delete-generic-password -a "$(id -un)" -s "codex-model-router.deepseek"
 
 ## Model availability
 
-The installed picker includes current GPT entries, DeepSeek V4 Flash, and DeepSeek V4 Pro. The router never falls back between models. If DeepSeek has not enabled Pro for the account, Codex displays the upstream availability error and Flash remains separately selectable.
+The installed picker includes current GPT entries, DeepSeek Flash, and DeepSeek V4 Pro. The router never falls back between models. If DeepSeek has not enabled Pro for the account, Codex displays the upstream availability error and Flash remains separately selectable.
+
+`deepseek-flash` is declared as accepting text and image input; `deepseek-v4-pro` is text-only. Codex loads `model_catalog_json` at startup, so a catalog change becomes visible only after quitting and reopening the app (`⌘Q`).
+
+Codex sometimes sends a `function_call_output` item whose `call_id` is not a string. DeepSeek rejects that shape, so the router rewrites such orphan tool results into ordinary user text before forwarding. Every other part of the request body is forwarded unchanged.
 
 ## Security notes
 

@@ -66,8 +66,10 @@ launchctl print "gui/$(id -u)/com.codex.model-router"
 
 然后完整退出并重新打开 Codex Desktop（⌘Q，再启动），模型下拉菜单中应出现：
 
-- `DeepSeek-V4-Flash`
+- `DeepSeek-Flash`
 - `DeepSeek-V4-Pro`
+
+其中 `DeepSeek-Flash` 已声明支持文本与图片输入，`DeepSeek-V4-Pro` 仅支持文本。Codex 在启动时加载模型目录，改动目录后必须完整退出（⌘Q）再启动才会生效。
 
 ## 5. 更新路由后重装
 
@@ -75,6 +77,14 @@ launchctl print "gui/$(id -u)/com.codex.model-router"
 launchctl bootout "gui/$(id -u)/com.codex.model-router"
 ./scripts/install.sh
 ```
+
+重装会重新生成混合模型目录，并自动清理历史遗留的 `deepseek-v4-flash` 旧条目；`launchctl kickstart` 返回时服务可能尚未绑定端口，以 `/health` 返回 `{"status":"ok"}` 作为启动成功的判据。
+
+## 5.1 常见问题
+
+- 粘贴图片被提示“不支持图像输入”：当前运行的 Codex 仍缓存着旧模型目录，⌘Q 完全退出后重启即可。
+- 重启后可粘贴但发送报错：属 DeepSeek 上游返回，不是本地路由拦截。
+- 模型下拉菜单里还有 `deepseek-v4-flash`：重新执行 `./scripts/install.sh` 以重建目录。
 
 ## 6. 回滚
 

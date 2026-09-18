@@ -24,7 +24,7 @@ from src.installer import (
 )
 
 
-SAMPLE_CONFIG = '''model = "deepseek-v4-flash"
+SAMPLE_CONFIG = '''model = "deepseek-flash"
 model_provider = "deepseek"
 model_reasoning_effort = "high"
 preferred_auth_method = "apikey"
@@ -55,19 +55,20 @@ enabled = true
 
 
 class CatalogTests(unittest.TestCase):
-    def test_merge_preserves_official_models_and_replaces_deepseek_duplicates(self):
+    def test_merge_preserves_official_models_and_replaces_deepseek_entries(self):
         cache = {
             "fetched_at": "ignored",
             "models": [
                 {"slug": "gpt-5.6-sol", "display_name": "GPT-5.6-Sol"},
-                {"slug": "deepseek-v4-flash", "display_name": "stale"},
+                {"slug": "deepseek-flash", "display_name": "stale"},
+                {"slug": "deepseek-v4-flash", "display_name": "legacy"},
             ],
         }
         deepseek = {
             "models": [
                 {
-                    "slug": "deepseek-v4-flash",
-                    "display_name": "DeepSeek-V4-Flash",
+                    "slug": "deepseek-flash",
+                    "display_name": "DeepSeek-Flash",
                 },
                 {
                     "slug": "deepseek-v4-pro",
@@ -80,10 +81,10 @@ class CatalogTests(unittest.TestCase):
 
         self.assertEqual(
             [model["slug"] for model in merged["models"]],
-            ["gpt-5.6-sol", "deepseek-v4-flash", "deepseek-v4-pro"],
+            ["gpt-5.6-sol", "deepseek-flash", "deepseek-v4-pro"],
         )
         self.assertEqual(
-            merged["models"][1]["display_name"], "DeepSeek-V4-Flash"
+            merged["models"][1]["display_name"], "DeepSeek-Flash"
         )
         self.assertEqual(set(merged), {"models"})
 
@@ -222,8 +223,8 @@ class InstallTransactionTests(unittest.TestCase):
                 {
                     "models": [
                         {
-                            "slug": "deepseek-v4-flash",
-                            "display_name": "DeepSeek-V4-Flash",
+                            "slug": "deepseek-flash",
+                            "display_name": "DeepSeek-Flash",
                         },
                         {
                             "slug": "deepseek-v4-pro",
@@ -321,7 +322,7 @@ class InstallTransactionTests(unittest.TestCase):
         )
         self.assertEqual(
             [model["slug"] for model in catalog["models"]],
-            ["gpt-5.6-sol", "deepseek-v4-flash", "deepseek-v4-pro"],
+            ["gpt-5.6-sol", "deepseek-flash", "deepseek-v4-pro"],
         )
         self.assertTrue(
             (self.home / ".codex/model-router/codex_model_router.py").exists()
@@ -426,7 +427,7 @@ class UninstallTests(unittest.TestCase):
             json.dumps(
                 {
                     "models": [
-                        {"slug": "deepseek-v4-flash"},
+                        {"slug": "deepseek-flash"},
                         {"slug": "deepseek-v4-pro"},
                     ]
                 }

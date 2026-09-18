@@ -2,13 +2,15 @@
 
 **Status:** Approved for implementation on 2026-07-31
 
+> 历史规格文档。2026-09-17 起 Flash 的 slug 已由 `deepseek-v4-flash` 改为 `deepseek-flash`，并开放图片输入；文中的模型名以 README 与 `config/deepseek-models.json` 为准。
+
 ## Goal
 
 Keep a single model picker in the stock Codex desktop app while automatically using ChatGPT subscription authentication for GPT models and a DeepSeek API key for DeepSeek models. CC Switch must not participate in routing or credential lookup.
 
 ## User experience
 
-- The existing Codex model picker contains the current GPT catalog plus `deepseek-v4-flash` and `deepseek-v4-pro`.
+- The existing Codex model picker contains the current GPT catalog plus `deepseek-flash` and `deepseek-v4-pro`.
 - Selecting a GPT model sends the request through the ChatGPT subscription endpoint with the Codex-managed login token.
 - Selecting a DeepSeek model sends the request to DeepSeek's native Responses endpoint with the DeepSeek API key.
 - The user launches the existing Codex app normally. There is no second icon, profile, or preparatory terminal command.
@@ -19,7 +21,7 @@ Keep a single model picker in the stock Codex desktop app while automatically us
 Codex uses a single custom provider whose base URL is `http://127.0.0.1:17890`. The provider keeps `requires_openai_auth = true`, causing Codex to attach its official ChatGPT login token. The local router reads the `model` field in each Responses request and selects exactly one upstream:
 
 - GPT catalog entry: `https://chatgpt.com/backend-api/codex`
-- `deepseek-v4-flash` or `deepseek-v4-pro`: `https://api.deepseek.com`
+- `deepseek-flash` or `deepseek-v4-pro`: `https://api.deepseek.com`
 - Any uncatalogued model: local HTTP 400 response
 
 The router forwards Responses streaming data without interpreting or rewriting events.
@@ -87,7 +89,7 @@ The router returns explicit local errors for invalid JSON, missing model, unknow
 4. Installer tests prove unrelated TOML sections survive migration and plaintext DeepSeek credentials are removed only after secure storage succeeds.
 5. `GET /health` succeeds after the LaunchAgent is loaded.
 6. A real GPT request returns a sentinel response while `model = gpt-5.6-sol`.
-7. A real DeepSeek Flash request returns a different sentinel response while `model = deepseek-v4-flash`.
+7. A real DeepSeek Flash request returns a different sentinel response while `model = deepseek-flash`.
 8. `app-server model/list` shows GPT, DeepSeek Flash, and DeepSeek Pro in one list.
 9. CC Switch proxy state and database are not used or modified.
 

@@ -10,7 +10,7 @@
 
 - 本地路由服务监听 `127.0.0.1:17890`，按请求中的 `model` 字段分流：
   - `gpt-*` → `chatgpt.com/backend-api/codex`（保留 Codex 登录态）
-  - `deepseek-v4-*` → `api.deepseek.com`（剥离 OpenAI 身份头，注入 Keychain Key）
+  - `deepseek-flash` / `deepseek-v4-pro` → `api.deepseek.com`（剥离 OpenAI 身份头，注入 Keychain Key）
 - DeepSeek API Key 存于 macOS 登录钥匙串：服务 `codex-model-router.deepseek`，账号为当前登录用户名；配置文件无明文。
 - LaunchAgent（`com.codex.model-router`）随登录启动、异常自动重启，仅监听回环地址。
 - 模型目录 `~/.codex/models-router.json` 合并官方 GPT 条目与两个 DeepSeek 条目。
@@ -35,6 +35,15 @@
 1. `~/.codex/config.toml` 中 `[model_providers.local_router]` 与生效的 `custom` 段内容重复，属安装期冗余，当前不生效。
 2. DeepSeek V4 Pro 需等待上游开放后才可实际使用。
 3. 修改模型目录或配置后，需完整退出并重新启动 Codex Desktop（⌘Q）才会刷新模型列表。
+
+## 7. 2026-09-17 增量改造（来源：`发布 DeepSeek` 会话）
+
+- 模型改名：`deepseek-v4-flash` → `deepseek-flash`（显示名 `DeepSeek-Flash`），路由白名单同步更新；`deepseek-v4-pro` 保持不变。
+- Flash 开启图片输入：`input_modalities` 为 `["text","image"]`，`supports_image_detail_original` 为 `true`；粘贴图片提示“不支持图像输入”是因为运行中的 Codex 仍缓存旧目录，需 ⌘Q 完全退出后重启。
+- 路由兼容修复：新增 `normalize_deepseek_payload()`，把 `call_id` 非字符串的 `function_call_output` 改写为普通用户文本后再转发，避免 DeepSeek 拒收孤儿工具结果。
+- 安装器迁移：`merge_catalog()` 会丢弃历史遗留的 `deepseek-v4-flash` 条目。
+
+仓库已同步以上改造；本机 `~/.codex/model-router/codex_model_router.py` 与仓库 `src/codex_model_router.py` 内容一致。
 
 ## 6. 下一步
 
