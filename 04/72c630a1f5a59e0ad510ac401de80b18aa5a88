@@ -1,0 +1,35 @@
+docs/HANDOFF.md
+  s_49b587fc2535e4::t_caeef6b8d7d6b3 45
+docs/PROJECT.md
+  s_49b587fc2535e4::t_caeef6b8d7d6b3 103
+  s_49b587fc2535e4::t_588547af87288a 104
+README.md
+  s_49b587fc2535e4::t_caeef6b8d7d6b3 82-83
+  s_49b587fc2535e4::t_588547af87288a 84-85
+src/installer.py
+  s_49b587fc2535e4::t_a36184e42fb9c0 47-48,145-164,183-188,190,436-437
+docs/REUSE.md
+  s_49b587fc2535e4::t_caeef6b8d7d6b3 83-84
+  s_49b587fc2535e4::t_588547af87288a 85-86
+tests/test_installer.py
+  s_49b587fc2535e4::t_a36184e42fb9c0 109,135-153
+  s_49b587fc2535e4::t_3a66da80d865f0 337
+  s_49b587fc2535e4::t_588547af87288a 516-591
+  s_49b587fc2535e4::t_d5d5c2658332ef 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0472c630a1f5a59e0ad510ac401de80b18aa5a88",
+  "prompts": {},
+  "sessions": {
+    "s_49b587fc2535e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b049-33ea-7253-9eaf-b540def95f2f",
+        "model": "deepseek-flash"
+      },
+      "human_author": "NBTD7530 <862554643@qq.com>"
+    }
+  }
+}
